@@ -1,0 +1,758 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>약속잡기</title>
+  <style>
+    :root {
+      --primary: #6366f1;
+      --primary-hover: #4f46e5;
+      --primary-bg: #eef2ff;
+      --primary-light: #c7d2fe;
+      --success: #22c55e;
+      --success-bg: #dcfce7;
+      --danger: #ef4444;
+      --text: #0f172a;
+      --text-2: #475569;
+      --text-3: #94a3b8;
+      --border: #e2e8f0;
+      --bg: #f8fafc;
+      --card: #ffffff;
+      --radius: 20px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+    html, body { height: 100%; }
+    body {
+      font-family: 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', sans-serif;
+      background: var(--bg); color: var(--text);
+      min-height: 100vh; overflow-x: hidden;
+    }
+
+    /* ── Page transitions ─────────────────── */
+    .page {
+      display: none; min-height: 100vh;
+      animation: fadeIn .22s ease;
+    }
+    .page.active { display: flex; flex-direction: column; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+
+    /* ── Topbar ──────────────────────────── */
+    .topbar {
+      display: flex; align-items: center; padding: 16px 20px 0;
+      position: sticky; top: 0; background: var(--bg); z-index: 10;
+    }
+    .back-btn {
+      width: 38px; height: 38px; border-radius: 12px;
+      background: var(--card); border: 1.5px solid var(--border);
+      cursor: pointer; display: flex; align-items: center; justify-content: center;
+      font-size: 1.1rem; color: var(--text-2); transition: .15s;
+      flex-shrink: 0;
+    }
+    .back-btn:hover { background: var(--primary-bg); border-color: var(--primary-light); color: var(--primary); }
+    .topbar-title { font-size: 1rem; font-weight: 800; margin-left: 12px; color: var(--text); }
+
+    /* ── Scroll content ──────────────────── */
+    .scroll-body { flex: 1; overflow-y: auto; padding: 20px 20px 40px; max-width: 480px; margin: 0 auto; width: 100%; }
+
+    /* ── Buttons ─────────────────────────── */
+    .btn {
+      display: flex; align-items: center; justify-content: center; gap: 7px;
+      width: 100%; padding: 15px 20px; border-radius: 14px;
+      font-size: 1rem; font-weight: 800; border: none; cursor: pointer;
+      transition: .15s; letter-spacing: -.3px;
+    }
+    .btn:active { transform: scale(.97); }
+    .btn-primary { background: var(--primary); color: #fff; box-shadow: 0 4px 14px rgba(99,102,241,.3); }
+    .btn-primary:hover { background: var(--primary-hover); }
+    .btn-primary:disabled { background: #c7d2fe; box-shadow: none; cursor: not-allowed; transform: none; }
+    .btn-primary.btn-disabled { background: #c7d2fe; box-shadow: none; cursor: not-allowed; transform: none; }
+    .btn-outline { background: var(--card); color: var(--primary); border: 2px solid var(--primary-light); }
+    .btn-outline:hover { background: var(--primary-bg); }
+    .btn-ghost { background: var(--card); color: var(--text-2); border: 1.5px solid var(--border); }
+    .btn-ghost:hover { background: var(--bg); }
+    .btn-success { background: var(--success); color: #fff; box-shadow: 0 4px 14px rgba(34,197,94,.25); }
+    .btn-success:hover { background: #16a34a; }
+    .btn-sm { padding: 10px 18px; font-size: .88rem; border-radius: 10px; }
+
+    /* ── Inputs ──────────────────────────── */
+    .input-label { font-size: .8rem; font-weight: 700; color: var(--text-2); margin-bottom: 8px; display: block; letter-spacing: .3px; }
+    .input {
+      width: 100%; border: 1.5px solid var(--border); border-radius: 12px;
+      padding: 13px 16px; font-size: 1rem; color: var(--text); background: var(--card);
+      outline: none; transition: .2s;
+    }
+    .input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(99,102,241,.12); }
+    .input::placeholder { color: var(--text-3); }
+
+    /* ── Tag input ───────────────────────── */
+    .tag-wrap {
+      border: 1.5px solid var(--border); border-radius: 12px; background: var(--card);
+      padding: 10px 12px; display: flex; flex-wrap: wrap; gap: 8px; min-height: 52px;
+      cursor: text; transition: .2s;
+    }
+    .tag-wrap:focus-within { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(99,102,241,.12); }
+    .tag {
+      display: inline-flex; align-items: center; gap: 5px;
+      background: var(--primary-bg); color: var(--primary-hover);
+      border-radius: 99px; padding: 5px 13px 5px 14px; font-size: .88rem; font-weight: 700;
+    }
+    .tag-del { background: none; border: none; cursor: pointer; color: var(--primary); font-size: 1.05rem; line-height: 1; padding: 0 2px; }
+    .tag-input { border: none; background: transparent; outline: none; font-size: .95rem; color: var(--text); flex: 1; min-width: 80px; }
+
+    /* ── Cards ───────────────────────────── */
+    .card { background: var(--card); border-radius: var(--radius); padding: 22px 20px; margin-bottom: 14px; box-shadow: 0 2px 12px rgba(0,0,0,.05); }
+
+    /* ── Share box ───────────────────────── */
+    .share-url-box {
+      background: var(--primary-bg); border-radius: 12px; padding: 13px 15px;
+      display: flex; align-items: center; gap: 10px; margin-bottom: 12px;
+    }
+    .share-url-text { flex: 1; font-size: .8rem; font-weight: 600; color: var(--primary-hover); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .share-copy-btn { background: var(--primary); color: #fff; border: none; border-radius: 9px; padding: 8px 14px; font-size: .82rem; font-weight: 800; cursor: pointer; flex-shrink: 0; }
+    .share-copy-btn:hover { background: var(--primary-hover); }
+
+    /* ── Name select buttons ─────────────── */
+    .name-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 11px; }
+    .name-btn {
+      padding: 18px 14px; border-radius: 16px; font-size: 1.05rem; font-weight: 800;
+      border: 2px solid var(--border); background: var(--card); cursor: pointer;
+      transition: .15s; text-align: center; color: var(--text); position: relative;
+    }
+    .name-btn:hover { border-color: var(--primary); background: var(--primary-bg); color: var(--primary-hover); transform: translateY(-2px); box-shadow: 0 4px 14px rgba(99,102,241,.15); }
+    .name-btn:active { transform: scale(.97); }
+    .name-btn.voted { border-color: var(--success); background: var(--success-bg); color: #15803d; cursor: default; }
+    .name-btn.voted:hover { transform: none; }
+    .voted-badge { display: block; font-size: .72rem; font-weight: 700; color: var(--success); margin-top: 5px; }
+
+    /* ── Calendar ────────────────────────── */
+    .cal-nav { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+    .cal-title { font-size: 1.05rem; font-weight: 800; }
+    .cal-arrow {
+      width: 36px; height: 36px; border-radius: 10px;
+      background: var(--bg); border: 1.5px solid var(--border);
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; font-size: 1rem; font-weight: 800; transition: .15s; color: var(--text-2);
+    }
+    .cal-arrow:hover { border-color: var(--primary-light); background: var(--primary-bg); color: var(--primary); }
+    .cal-arrow:disabled { opacity: .3; cursor: default; pointer-events: none; }
+    .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; }
+    .dow { text-align: center; font-size: .72rem; font-weight: 800; color: var(--text-3); padding: 5px 0 8px; }
+    .dow.sun { color: #f87171; }
+    .dow.sat { color: #818cf8; }
+    .day {
+      aspect-ratio: 1; border-radius: 10px; display: flex; align-items: center; justify-content: center;
+      font-size: .85rem; font-weight: 600; cursor: pointer; transition: .12s; position: relative;
+    }
+    .day:hover:not(.empty):not(.past) { background: var(--primary-bg); color: var(--primary); }
+    .day.empty, .day.past { cursor: default; color: var(--border); }
+    .day.sun:not(.past):not(.empty) { color: #f87171; }
+    .day.sat:not(.past):not(.empty) { color: #818cf8; }
+    .day.today { outline: 2px solid var(--primary-light); outline-offset: -2px; border-radius: 10px; }
+    .day.sel { background: var(--primary) !important; color: #fff !important; box-shadow: 0 2px 8px rgba(99,102,241,.3); }
+    .day.sel:hover { background: var(--primary-hover) !important; }
+    /* heatmap */
+    .day.h1 { background: #d1fae5; color: #065f46; }
+    .day.h2 { background: #6ee7b7; color: #064e3b; }
+    .day.h3 { background: #34d399; color: #022c22; }
+    .day.h4 { background: #10b981; color: #fff; }
+    .day.h5 { background: #059669; color: #fff; }
+    .heat-label { position: absolute; bottom: 2px; font-size: .58rem; font-weight: 800; opacity: .9; left: 50%; transform: translateX(-50%); white-space: nowrap; }
+
+    /* selected count pill */
+    .sel-count {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: var(--primary-bg); color: var(--primary-hover);
+      border-radius: 99px; padding: 7px 16px; font-size: .88rem; font-weight: 700;
+      margin-bottom: 18px;
+    }
+
+    /* ── Results ─────────────────────────── */
+    .result-item { background: var(--bg); border: 1.5px solid var(--border); border-radius: 14px; padding: 14px 16px; margin-bottom: 10px; }
+    .result-item.best { border-color: var(--success); background: var(--success-bg); }
+    .result-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 9px; }
+    .result-date { font-size: .97rem; font-weight: 800; }
+    .result-stat { font-size: .82rem; font-weight: 800; color: var(--primary); }
+    .result-item.best .result-stat { color: #15803d; }
+    .prog-bg { height: 6px; background: var(--border); border-radius: 99px; margin-bottom: 10px; }
+    .prog-fill { height: 100%; border-radius: 99px; background: var(--primary); transition: width .4s; }
+    .result-item.best .prog-fill { background: var(--success); }
+    .chip-row { display: flex; flex-wrap: wrap; gap: 6px; }
+    .chip { background: #fff; border: 1.5px solid var(--border); border-radius: 99px; padding: 3px 12px; font-size: .8rem; font-weight: 700; color: var(--text); }
+    .result-item.best .chip { border-color: #86efac; background: #f0fdf4; }
+    .badge-best { background: var(--success); color: #fff; border-radius: 99px; padding: 3px 10px; font-size: .72rem; font-weight: 800; margin-left: 7px; }
+
+    /* ── Misc ────────────────────────────── */
+    .section-gap { height: 20px; }
+    .row { display: flex; gap: 10px; }
+    .hint { font-size: .78rem; color: var(--text-3); margin-top: 7px; }
+    .divider { height: 1px; background: var(--border); margin: 18px 0; }
+
+    /* Toast */
+    .toast {
+      position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%) translateY(16px);
+      background: #1e293b; color: #fff; border-radius: 12px; padding: 12px 22px;
+      font-size: .9rem; font-weight: 700; opacity: 0; pointer-events: none;
+      transition: opacity .2s, transform .2s; z-index: 999; white-space: nowrap;
+      box-shadow: 0 4px 20px rgba(0,0,0,.2);
+    }
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+    /* ── Page 1: Main ────────────────────── */
+    #p-main {
+      background: linear-gradient(160deg, #4f46e5 0%, #7c3aed 50%, #a855f7 100%);
+      align-items: center; justify-content: center; text-align: center; padding: 40px 28px;
+    }
+    .main-emoji { font-size: 5rem; margin-bottom: 20px; display: block; }
+    .main-title { font-size: 2rem; font-weight: 900; color: #fff; letter-spacing: -1.5px; margin-bottom: 10px; }
+    .main-desc { font-size: 1rem; color: rgba(255,255,255,.8); line-height: 1.6; margin-bottom: 40px; }
+    .main-cta { background: #fff; color: var(--primary-hover); font-weight: 900; font-size: 1.05rem; padding: 16px 40px; border-radius: 16px; border: none; cursor: pointer; transition: .15s; box-shadow: 0 4px 24px rgba(0,0,0,.15); width: auto; display: inline-flex; }
+    .main-cta:hover { transform: translateY(-2px); box-shadow: 0 8px 30px rgba(0,0,0,.2); }
+    .main-cta:active { transform: scale(.97); }
+
+    /* ── Page 3: Share ───────────────────── */
+    .check-circle { width: 64px; height: 64px; background: var(--success-bg); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 2rem; margin: 0 auto 16px; }
+    .participants-preview { display: flex; flex-wrap: wrap; gap: 7px; }
+    .p-pill { background: var(--primary-bg); color: var(--primary-hover); border-radius: 99px; padding: 5px 14px; font-size: .88rem; font-weight: 700; }
+
+    /* ── Page 5: Submit done ─────────────── */
+    #p-done { background: var(--bg); }
+    .done-icon { font-size: 4rem; text-align: center; display: block; margin-bottom: 14px; }
+
+    @media (max-width: 400px) {
+      .name-grid { grid-template-columns: 1fr; }
+      .main-title { font-size: 1.7rem; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════════
+     PAGE 1: 메인 (랜딩)
+══════════════════════════════════════════════ -->
+<div class="page active" id="p-main">
+  <span class="main-emoji">🗓️</span>
+  <h1 class="main-title">약속잡기</h1>
+  <p class="main-desc">참여 인원을 정하고<br>각자 가능한 날짜를 골라봐요.<br>겹치는 날을 한눈에 확인해요!</p>
+  <button class="main-cta" onclick="go('p-create')">약속 만들기 →</button>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     PAGE 2: 약속 만들기
+══════════════════════════════════════════════ -->
+<div class="page" id="p-create">
+  <div class="topbar">
+    <button class="back-btn" onclick="go('p-main')">←</button>
+    <span class="topbar-title">새 약속 만들기</span>
+  </div>
+  <div class="scroll-body">
+    <div class="section-gap"></div>
+
+    <div class="card">
+      <div style="margin-bottom:20px">
+        <label class="input-label">약속 이름</label>
+        <input class="input" id="ev-title" placeholder="예) 여름 MT, 생일파티 🎉" maxlength="40" oninput="validateCreate()" />
+      </div>
+
+      <div>
+        <label class="input-label">참여 인원</label>
+        <div class="tag-wrap" id="tag-wrap" onclick="document.getElementById('tag-inp').focus()">
+          <input class="tag-input" id="tag-inp" placeholder="이름 입력 후 Enter" maxlength="12" autocomplete="off" />
+        </div>
+        <p class="hint">Enter 또는 쉼표(,)로 추가 · 최소 2명</p>
+      </div>
+    </div>
+
+    <div id="participants-preview-card" style="display:none" class="card">
+      <div style="font-size:.8rem;font-weight:700;color:var(--text-2);margin-bottom:10px">참여 인원</div>
+      <div class="participants-preview" id="participants-preview"></div>
+    </div>
+
+    <div class="section-gap"></div>
+    <button class="btn btn-primary" id="create-btn" onclick="submitCreate()">완료하기</button>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     PAGE 3: 공유하기
+══════════════════════════════════════════════ -->
+<div class="page" id="p-share">
+  <div class="topbar">
+    <button class="back-btn" onclick="go('p-create')">←</button>
+    <span class="topbar-title">공유하기</span>
+  </div>
+  <div class="scroll-body">
+    <div class="section-gap"></div>
+
+    <div class="card" style="text-align:center">
+      <div class="check-circle">✅</div>
+      <div style="font-size:1.2rem;font-weight:900;margin-bottom:6px" id="share-ev-title"></div>
+      <div style="font-size:.88rem;color:var(--text-2);margin-bottom:18px">약속이 만들어졌어요!</div>
+      <div class="participants-preview" id="share-participants" style="justify-content:center;margin-bottom:0"></div>
+    </div>
+
+    <div class="card">
+      <div style="font-size:.85rem;font-weight:700;color:var(--text-2);margin-bottom:12px">📎 공유 링크</div>
+      <div class="share-url-box">
+        <span class="share-url-text" id="share-url-text"></span>
+        <button class="share-copy-btn" onclick="copyLink()">복사</button>
+      </div>
+      <button class="btn btn-primary" onclick="nativeShare()">공유하기 ↗</button>
+    </div>
+
+    <button class="btn btn-ghost" style="margin-top:4px" onclick="goToMyVote()">내 날짜 직접 입력하기</button>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     PAGE 4: 이름 선택 (공유받은 사람)
+══════════════════════════════════════════════ -->
+<div class="page" id="p-names">
+  <div class="topbar">
+    <span class="topbar-title" id="names-ev-title" style="margin-left:0"></span>
+  </div>
+  <div class="scroll-body">
+    <div class="section-gap"></div>
+
+    <div style="font-size:1.3rem;font-weight:900;margin-bottom:6px">누구세요? 👋</div>
+    <div style="font-size:.9rem;color:var(--text-2);margin-bottom:22px">내 이름을 선택하면 가능한 날짜를 입력할 수 있어요</div>
+
+    <div class="name-grid" id="name-grid"></div>
+
+    <div class="divider"></div>
+    <button class="btn btn-outline" onclick="go('p-results')">결과 보기 📊</button>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     PAGE 5: 캘린더 (날짜 선택)
+══════════════════════════════════════════════ -->
+<div class="page" id="p-cal">
+  <div class="topbar">
+    <button class="back-btn" onclick="go('p-names')">←</button>
+    <span class="topbar-title" id="cal-topbar-title"></span>
+  </div>
+  <div class="scroll-body">
+    <div class="section-gap"></div>
+
+    <div style="font-size:.9rem;color:var(--text-2);margin-bottom:16px">가능한 날짜를 모두 선택해 주세요</div>
+
+    <div id="sel-count-wrap" class="sel-count" style="display:none">
+      <span>✅</span><span id="sel-count-text"></span>
+    </div>
+
+    <div class="card" style="padding:20px 14px">
+      <div class="cal-nav">
+        <button class="cal-arrow" id="cal-prev" onclick="calNav(-1)">‹</button>
+        <div class="cal-title" id="cal-title"></div>
+        <button class="cal-arrow" id="cal-next" onclick="calNav(1)">›</button>
+      </div>
+      <div class="cal-grid" id="cal-grid"></div>
+    </div>
+
+    <button class="btn btn-success" onclick="submitVote()">제출하기 →</button>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     PAGE 6: 결과
+══════════════════════════════════════════════ -->
+<div class="page" id="p-results">
+  <div class="topbar">
+    <button class="back-btn" onclick="go('p-names')">←</button>
+    <span class="topbar-title" id="results-ev-title"></span>
+  </div>
+  <div class="scroll-body">
+    <div class="section-gap"></div>
+
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+      <div style="font-size:1rem;font-weight:900">📊 날짜별 현황</div>
+      <div style="font-size:.82rem;font-weight:700;color:var(--text-3)" id="results-meta"></div>
+    </div>
+
+    <!-- heatmap calendar -->
+    <div class="card" style="padding:20px 14px;margin-bottom:18px">
+      <div class="cal-nav">
+        <button class="cal-arrow" id="res-prev" onclick="resCalNav(-1)">‹</button>
+        <div class="cal-title" id="res-cal-title"></div>
+        <button class="cal-arrow" id="res-next" onclick="resCalNav(1)">›</button>
+      </div>
+      <div class="cal-grid" id="res-cal-grid"></div>
+      <div style="display:flex;align-items:center;gap:6px;margin-top:14px;flex-wrap:wrap">
+        <span style="font-size:.75rem;color:var(--text-3);margin-right:4px">적음</span>
+        <div style="width:20px;height:20px;border-radius:6px;background:#d1fae5"></div>
+        <div style="width:20px;height:20px;border-radius:6px;background:#6ee7b7"></div>
+        <div style="width:20px;height:20px;border-radius:6px;background:#34d399"></div>
+        <div style="width:20px;height:20px;border-radius:6px;background:#10b981"></div>
+        <div style="width:20px;height:20px;border-radius:6px;background:#059669"></div>
+        <span style="font-size:.75rem;color:var(--text-3);margin-left:4px">많음</span>
+      </div>
+    </div>
+
+    <div id="result-list"></div>
+
+    <div class="divider"></div>
+    <button class="btn btn-ghost" onclick="shareResultUrl()">링크 공유하기 🔗</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ═══════════════════════════════════════════
+//  Constants
+// ═══════════════════════════════════════════
+const DAYS = ['일','월','화','수','목','금','토'];
+const MONTHS = ['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월'];
+const TODAY = new Date(); TODAY.setHours(0,0,0,0);
+
+// ═══════════════════════════════════════════
+//  State
+// ═══════════════════════════════════════════
+let S = null;      // event state { title, participants, votes, created }
+let myName = null;
+let myDates = [];
+let calY, calM;    // vote calendar
+let resY, resM;    // results calendar
+
+// ═══════════════════════════════════════════
+//  Page navigation
+// ═══════════════════════════════════════════
+function go(pageId) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById(pageId).classList.add('active');
+  window.scrollTo(0, 0);
+  if (pageId === 'p-names') renderNamesPage();
+  if (pageId === 'p-results') renderResultsPage();
+}
+
+// ═══════════════════════════════════════════
+//  State encode/decode (URL hash)
+// ═══════════════════════════════════════════
+function enc(s) { return btoa(unescape(encodeURIComponent(JSON.stringify(s)))); }
+function dec(str) { try { return JSON.parse(decodeURIComponent(escape(atob(str)))); } catch { return null; } }
+function eventUrl() { return location.origin + location.pathname + '#' + enc(S); }
+
+// ═══════════════════════════════════════════
+//  PAGE 2: Create form
+// ═══════════════════════════════════════════
+let participants = [];
+
+document.getElementById('tag-inp').addEventListener('keydown', e => {
+  if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); addTag(); }
+  if (e.key === 'Backspace' && !e.target.value) removeLastTag();
+});
+
+function addTag() {
+  const inp = document.getElementById('tag-inp');
+  const name = inp.value.replace(/,/g, '').trim();
+  if (!name) return;
+  if (participants.includes(name)) { showToast('이미 있는 이름이에요'); inp.value = ''; return; }
+  participants.push(name);
+  inp.value = '';
+  renderTags();
+  validateCreate();
+}
+function removeTag(name) { participants = participants.filter(p => p !== name); renderTags(); validateCreate(); }
+function removeLastTag() { if (participants.length) { participants.pop(); renderTags(); validateCreate(); } }
+
+function renderTags() {
+  const wrap = document.getElementById('tag-wrap');
+  const inp = document.getElementById('tag-inp');
+  [...wrap.querySelectorAll('.tag')].forEach(t => t.remove());
+  participants.forEach(name => {
+    const el = document.createElement('div');
+    el.className = 'tag';
+    el.innerHTML = `${name}<button class="tag-del" onclick="removeTag('${name}')">×</button>`;
+    wrap.insertBefore(el, inp);
+  });
+  // preview
+  const pc = document.getElementById('participants-preview-card');
+  const pp = document.getElementById('participants-preview');
+  if (participants.length > 0) {
+    pc.style.display = '';
+    pp.innerHTML = participants.map(n => `<span class="p-pill">${n}</span>`).join('');
+  } else {
+    pc.style.display = 'none';
+  }
+}
+
+function validateCreate() {
+  const title = document.getElementById('ev-title').value.trim();
+  const btn = document.getElementById('create-btn');
+  if (title && participants.length >= 2) {
+    btn.classList.remove('btn-disabled');
+  } else {
+    btn.classList.add('btn-disabled');
+  }
+}
+
+function submitCreate() {
+  const title = document.getElementById('ev-title').value.trim();
+  if (!title) return showToast('약속 이름을 입력해주세요');
+  if (participants.length < 2) return showToast('참여 인원을 2명 이상 추가해주세요');
+  S = { title, participants: [...participants], votes: {}, created: fmtDate(TODAY) };
+  // reset create form
+  participants = [];
+  renderTags();
+  document.getElementById('ev-title').value = '';
+  validateCreate();
+  showSharePage();
+}
+
+// ═══════════════════════════════════════════
+//  PAGE 3: Share
+// ═══════════════════════════════════════════
+function showSharePage() {
+  document.getElementById('share-ev-title').textContent = S.title;
+  document.getElementById('share-participants').innerHTML = S.participants.map(n => `<span class="p-pill">${n}</span>`).join('');
+  document.getElementById('share-url-text').textContent = eventUrl();
+  go('p-share');
+}
+
+function copyLink() {
+  navigator.clipboard.writeText(eventUrl()).then(() => showToast('링크 복사 완료! 📋'));
+}
+
+async function nativeShare() {
+  const url = eventUrl();
+  if (navigator.share) {
+    try {
+      await navigator.share({ title: S.title + ' - 약속잡기', text: '가능한 날짜를 선택해 주세요!', url });
+      return;
+    } catch (e) { /* fallthrough */ }
+  }
+  await navigator.clipboard.writeText(url).catch(() => {});
+  showToast('링크가 복사되었어요! 친구들에게 보내세요 🔗');
+}
+
+function goToMyVote() {
+  go('p-names');
+}
+
+// ═══════════════════════════════════════════
+//  PAGE 4: Name selection
+// ═══════════════════════════════════════════
+function renderNamesPage() {
+  document.getElementById('names-ev-title').textContent = S.title;
+  const grid = document.getElementById('name-grid');
+  grid.innerHTML = S.participants.map(name => {
+    const voted = !!S.votes[name];
+    return `
+      <button class="name-btn ${voted ? 'voted' : ''}" onclick="${voted ? '' : `selectName('${name}')`}">
+        ${name}
+        ${voted ? '<span class="voted-badge">✓ 완료</span>' : ''}
+      </button>
+    `;
+  }).join('');
+}
+
+function selectName(name) {
+  myName = name;
+  myDates = [...(S.votes[name] || [])];
+  // init calendar to current month (or creation month if later)
+  const [cy, cm] = S.created.split('-').map(Number);
+  const now = TODAY;
+  calY = now.getFullYear(); calM = now.getMonth();
+  // if created month is later, start there
+  if (cy * 12 + cm > calY * 12 + calM) { calY = cy; calM = cm - 1; }
+
+  document.getElementById('cal-topbar-title').textContent = name + '님의 가능한 날짜';
+  renderCalendarVote();
+  go('p-cal');
+}
+
+// ═══════════════════════════════════════════
+//  PAGE 5: Calendar (vote)
+// ═══════════════════════════════════════════
+function renderCalendarVote() {
+  document.getElementById('cal-title').textContent = `${calY}년 ${MONTHS[calM]}`;
+  document.getElementById('cal-prev').disabled = (calY * 12 + calM <= TODAY.getFullYear() * 12 + TODAY.getMonth());
+  document.getElementById('cal-next').disabled = (calY * 12 + calM >= TODAY.getFullYear() * 12 + TODAY.getMonth() + 5);
+  document.getElementById('cal-grid').innerHTML = buildCal(calY, calM, 'vote');
+  const cnt = myDates.length;
+  const sw = document.getElementById('sel-count-wrap');
+  const st = document.getElementById('sel-count-text');
+  sw.style.display = cnt > 0 ? 'inline-flex' : 'none';
+  if (cnt > 0) st.textContent = `${cnt}일 선택됨`;
+}
+
+function calNav(dir) {
+  calM += dir;
+  if (calM < 0) { calM = 11; calY--; }
+  if (calM > 11) { calM = 0; calY++; }
+  renderCalendarVote();
+}
+
+function toggleDate(d) {
+  const i = myDates.indexOf(d);
+  if (i >= 0) myDates.splice(i, 1);
+  else myDates.push(d);
+  renderCalendarVote();
+}
+
+function submitVote() {
+  if (myDates.length === 0) return showToast('가능한 날짜를 하나 이상 선택해주세요');
+  S.votes[myName] = [...myDates].sort();
+  location.hash = enc(S); // update URL with new state
+  myName = null; myDates = [];
+  renderResultsPage();
+  go('p-results');
+  showToast('제출 완료! 새 링크를 공유해보세요 ✅');
+}
+
+// ═══════════════════════════════════════════
+//  PAGE 6: Results
+// ═══════════════════════════════════════════
+function renderResultsPage() {
+  document.getElementById('results-ev-title').textContent = S.title;
+  const voterCnt = Object.keys(S.votes).length;
+  const total = S.participants.length;
+  document.getElementById('results-meta').textContent = `${voterCnt}/${total}명 응답`;
+
+  if (!resY) { resY = TODAY.getFullYear(); resM = TODAY.getMonth(); }
+  renderResCalendar();
+  renderResultList();
+}
+
+function renderResCalendar() {
+  document.getElementById('res-cal-title').textContent = `${resY}년 ${MONTHS[resM]}`;
+  document.getElementById('res-prev').disabled = (resY * 12 + resM <= TODAY.getFullYear() * 12 + TODAY.getMonth());
+  document.getElementById('res-next').disabled = (resY * 12 + resM >= TODAY.getFullYear() * 12 + TODAY.getMonth() + 5);
+  document.getElementById('res-cal-grid').innerHTML = buildCal(resY, resM, 'heat');
+}
+
+function resCalNav(dir) {
+  resM += dir;
+  if (resM < 0) { resM = 11; resY--; }
+  if (resM > 11) { resM = 0; resY++; }
+  renderResCalendar();
+}
+
+function renderResultList() {
+  const tally = {};
+  Object.entries(S.votes).forEach(([name, dates]) => {
+    dates.forEach(d => { if (!tally[d]) tally[d] = []; tally[d].push(name); });
+  });
+  const voterCnt = Object.keys(S.votes).length;
+  const sorted = Object.entries(tally).sort((a, b) => b[1].length - a[1].length || a[0].localeCompare(b[0]));
+  const maxCnt = sorted.length ? sorted[0][1].length : 0;
+  const list = document.getElementById('result-list');
+  if (!sorted.length) {
+    list.innerHTML = `<div style="text-align:center;padding:30px;color:var(--text-3);font-size:.9rem">아직 응답이 없어요 😢<br>링크를 공유해보세요!</div>`;
+    return;
+  }
+  list.innerHTML = sorted.slice(0, 15).map(([d, names]) => {
+    const cnt = names.length;
+    const pct = voterCnt > 0 ? Math.round(cnt / voterCnt * 100) : 0;
+    const isBest = cnt === maxCnt && cnt > 0;
+    const dt = new Date(d + 'T00:00:00');
+    const label = `${dt.getMonth()+1}월 ${dt.getDate()}일 (${DAYS[dt.getDay()]})`;
+    return `
+      <div class="result-item ${isBest ? 'best' : ''}">
+        <div class="result-top">
+          <span class="result-date">${label}${isBest ? '<span class="badge-best">🏆 최다</span>' : ''}</span>
+          <span class="result-stat">${cnt}/${voterCnt}명</span>
+        </div>
+        <div class="prog-bg"><div class="prog-fill" style="width:${pct}%"></div></div>
+        <div class="chip-row">${names.map(n => `<span class="chip">${n}</span>`).join('')}</div>
+      </div>
+    `;
+  }).join('');
+}
+
+function shareResultUrl() {
+  location.hash = enc(S);
+  const url = eventUrl();
+  if (navigator.share) {
+    navigator.share({ title: S.title + ' 결과', url }).catch(() => {});
+  } else {
+    navigator.clipboard.writeText(url).then(() => showToast('링크 복사 완료! 📋'));
+  }
+}
+
+// ═══════════════════════════════════════════
+//  Calendar builder (shared)
+// ═══════════════════════════════════════════
+function buildCal(year, month, mode) {
+  const heatmap = {};
+  const voterCnt = Object.keys(S.votes).length;
+  if (mode === 'heat') {
+    Object.values(S.votes).forEach(dates => {
+      dates.forEach(d => { heatmap[d] = (heatmap[d] || 0) + 1; });
+    });
+  }
+
+  let html = DAYS.map((d, i) => `<div class="dow ${i===0?'sun':i===6?'sat':''}">${d}</div>`).join('');
+
+  const firstDow = new Date(year, month, 1).getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  for (let i = 0; i < firstDow; i++) html += `<div class="day empty"></div>`;
+
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dateStr = `${year}-${pad(month+1)}-${pad(d)}`;
+    const cellDate = new Date(year, month, d);
+    const dow = cellDate.getDay();
+    const isPast = cellDate < TODAY;
+    const isToday = cellDate.getTime() === TODAY.getTime();
+
+    let cls = 'day';
+    if (isPast) cls += ' past';
+    else if (dow === 0) cls += ' sun';
+    else if (dow === 6) cls += ' sat';
+    if (isToday) cls += ' today';
+
+    let inner = `${d}`;
+    let onclick = '';
+
+    if (mode === 'vote' && !isPast) {
+      if (myDates.includes(dateStr)) cls += ' sel';
+      onclick = `onclick="toggleDate('${dateStr}')"`;
+    } else if (mode === 'heat') {
+      const cnt = heatmap[dateStr] || 0;
+      if (cnt > 0 && voterCnt > 0) {
+        const r = cnt / voterCnt;
+        const lv = r >= 1 ? 5 : r >= .8 ? 4 : r >= .6 ? 3 : r >= .35 ? 2 : 1;
+        cls += ` h${lv}`;
+        inner += `<span class="heat-label">${cnt}명</span>`;
+      }
+    }
+
+    html += `<div class="${cls}" ${onclick}>${inner}</div>`;
+  }
+  return html;
+}
+
+function pad(n) { return String(n).padStart(2, '0'); }
+function fmtDate(d) { return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`; }
+
+// ═══════════════════════════════════════════
+//  Toast
+// ═══════════════════════════════════════════
+let toastTimer;
+function showToast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 2800);
+}
+
+// ═══════════════════════════════════════════
+//  URL hash routing
+// ═══════════════════════════════════════════
+function handleHash() {
+  const hash = location.hash.slice(1);
+  if (!hash) return;
+  const data = dec(hash);
+  if (data && data.title && data.participants) {
+    S = data;
+    resY = TODAY.getFullYear(); resM = TODAY.getMonth();
+    go('p-names');
+  }
+}
+window.addEventListener('hashchange', () => {});
+handleHash();
+</script>
+</body>
+</html>
