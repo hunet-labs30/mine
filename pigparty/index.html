@@ -4,6 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>약속잡기</title>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
   <style>
     :root {
       --primary: #6366f1;
@@ -65,7 +67,6 @@
     .btn:active { transform: scale(.97); }
     .btn-primary { background: var(--primary); color: #fff; box-shadow: 0 4px 14px rgba(99,102,241,.3); }
     .btn-primary:hover { background: var(--primary-hover); }
-    .btn-primary:disabled { background: #c7d2fe; box-shadow: none; cursor: not-allowed; transform: none; }
     .btn-primary.btn-disabled { background: #c7d2fe; box-shadow: none; cursor: not-allowed; transform: none; }
     .btn-outline { background: var(--card); color: var(--primary); border: 2px solid var(--primary-light); }
     .btn-outline:hover { background: var(--primary-bg); }
@@ -182,6 +183,15 @@
     .result-item.best .chip { border-color: #86efac; background: #f0fdf4; }
     .badge-best { background: var(--success); color: #fff; border-radius: 99px; padding: 3px 10px; font-size: .72rem; font-weight: 800; margin-left: 7px; }
 
+    /* ── Loading page ────────────────────── */
+    #p-loading { align-items: center; justify-content: center; background: var(--bg); }
+    .loading-spinner {
+      width: 42px; height: 42px; border-radius: 50%;
+      border: 3px solid var(--border); border-top-color: var(--primary);
+      animation: spin .7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
     /* ── Misc ────────────────────────────── */
     .section-gap { height: 20px; }
     .row { display: flex; gap: 10px; }
@@ -215,10 +225,6 @@
     .participants-preview { display: flex; flex-wrap: wrap; gap: 7px; }
     .p-pill { background: var(--primary-bg); color: var(--primary-hover); border-radius: 99px; padding: 5px 14px; font-size: .88rem; font-weight: 700; }
 
-    /* ── Page 5: Submit done ─────────────── */
-    #p-done { background: var(--bg); }
-    .done-icon { font-size: 4rem; text-align: center; display: block; margin-bottom: 14px; }
-
     @media (max-width: 400px) {
       .name-grid { grid-template-columns: 1fr; }
       .main-title { font-size: 1.7rem; }
@@ -226,6 +232,14 @@
   </style>
 </head>
 <body>
+
+<!-- ══════════════════════════════════════════════
+     PAGE 0: 로딩
+══════════════════════════════════════════════ -->
+<div class="page" id="p-loading">
+  <div class="loading-spinner"></div>
+  <div style="margin-top:16px;font-size:.9rem;color:var(--text-3);font-weight:600">불러오는 중...</div>
+</div>
 
 <!-- ══════════════════════════════════════════════
      PAGE 1: 메인 (랜딩)
@@ -269,7 +283,7 @@
     </div>
 
     <div class="section-gap"></div>
-    <button class="btn btn-primary" id="create-btn" onclick="submitCreate()">완료하기</button>
+    <button class="btn btn-primary btn-disabled" id="create-btn" onclick="submitCreate()">완료하기</button>
   </div>
 </div>
 
@@ -278,7 +292,7 @@
 ══════════════════════════════════════════════ -->
 <div class="page" id="p-share">
   <div class="topbar">
-    <button class="back-btn" onclick="go('p-create')">←</button>
+    <button class="back-btn" onclick="go('p-main')">←</button>
     <span class="topbar-title">공유하기</span>
   </div>
   <div class="scroll-body">
@@ -300,7 +314,7 @@
       <button class="btn btn-primary" onclick="nativeShare()">공유하기 ↗</button>
     </div>
 
-    <button class="btn btn-ghost" style="margin-top:4px" onclick="goToMyVote()">내 날짜 직접 입력하기</button>
+    <button class="btn btn-ghost" style="margin-top:4px" onclick="go('p-names')">내 날짜 직접 입력하기</button>
   </div>
 </div>
 
@@ -400,6 +414,21 @@
 
 <script>
 // ═══════════════════════════════════════════
+//  Firebase init
+// ═══════════════════════════════════════════
+const firebaseConfig = {
+  apiKey: "AIzaSyB_lh45eCEKvQX50YoPfkGNpFeNWDRuPtI",
+  authDomain: "pigparty-a798b.firebaseapp.com",
+  databaseURL: "https://pigparty-a798b-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "pigparty-a798b",
+  storageBucket: "pigparty-a798b.firebasestorage.app",
+  messagingSenderId: "218565412620",
+  appId: "1:218565412620:web:1fb9286bf3254b6d6b6b29"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+// ═══════════════════════════════════════════
 //  Constants
 // ═══════════════════════════════════════════
 const DAYS = ['일','월','화','수','목','금','토'];
@@ -409,16 +438,21 @@ const TODAY = new Date(); TODAY.setHours(0,0,0,0);
 // ═══════════════════════════════════════════
 //  State
 // ═══════════════════════════════════════════
-let S = null;      // event state { title, participants, votes, created }
+let S = null;            // { title, participants, votes, created }
+let currentEventId = null;
 let myName = null;
 let myDates = [];
-let calY, calM;    // vote calendar
-let resY, resM;    // results calendar
+let calY, calM;          // vote calendar
+let resY, resM;          // results calendar
+let resultsUnsubscribe = null;
 
 // ═══════════════════════════════════════════
 //  Page navigation
 // ═══════════════════════════════════════════
 function go(pageId) {
+  if (pageId !== 'p-results') {
+    if (resultsUnsubscribe) { resultsUnsubscribe(); resultsUnsubscribe = null; }
+  }
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.getElementById(pageId).classList.add('active');
   window.scrollTo(0, 0);
@@ -426,12 +460,9 @@ function go(pageId) {
   if (pageId === 'p-results') renderResultsPage();
 }
 
-// ═══════════════════════════════════════════
-//  State encode/decode (URL hash)
-// ═══════════════════════════════════════════
-function enc(s) { return btoa(unescape(encodeURIComponent(JSON.stringify(s)))); }
-function dec(str) { try { return JSON.parse(decodeURIComponent(escape(atob(str)))); } catch { return null; } }
-function eventUrl() { return location.origin + location.pathname + '#' + enc(S); }
+function eventUrl() {
+  return location.origin + location.pathname + '?id=' + currentEventId;
+}
 
 // ═══════════════════════════════════════════
 //  PAGE 2: Create form
@@ -466,7 +497,6 @@ function renderTags() {
     el.innerHTML = `${name}<button class="tag-del" onclick="removeTag('${name}')">×</button>`;
     wrap.insertBefore(el, inp);
   });
-  // preview
   const pc = document.getElementById('participants-preview-card');
   const pp = document.getElementById('participants-preview');
   if (participants.length > 0) {
@@ -487,17 +517,36 @@ function validateCreate() {
   }
 }
 
-function submitCreate() {
+async function submitCreate() {
   const title = document.getElementById('ev-title').value.trim();
   if (!title) return showToast('약속 이름을 입력해주세요');
   if (participants.length < 2) return showToast('참여 인원을 2명 이상 추가해주세요');
-  S = { title, participants: [...participants], votes: {}, created: fmtDate(TODAY) };
-  // reset create form
-  participants = [];
-  renderTags();
-  document.getElementById('ev-title').value = '';
-  validateCreate();
-  showSharePage();
+
+  const btn = document.getElementById('create-btn');
+  btn.textContent = '저장 중...';
+  btn.classList.add('btn-disabled');
+
+  try {
+    const eventData = {
+      title,
+      participants: [...participants],
+      created: fmtDate(TODAY)
+    };
+    const ref = await db.ref('events').push(eventData);
+    currentEventId = ref.key;
+    S = { ...eventData, votes: {} };
+
+    participants = [];
+    renderTags();
+    document.getElementById('ev-title').value = '';
+    validateCreate();
+    btn.textContent = '완료하기';
+    showSharePage();
+  } catch (e) {
+    showToast('저장에 실패했어요. 다시 시도해주세요.');
+    btn.textContent = '완료하기';
+    btn.classList.remove('btn-disabled');
+  }
 }
 
 // ═══════════════════════════════════════════
@@ -526,35 +575,35 @@ async function nativeShare() {
   showToast('링크가 복사되었어요! 친구들에게 보내세요 🔗');
 }
 
-function goToMyVote() {
-  go('p-names');
-}
-
 // ═══════════════════════════════════════════
 //  PAGE 4: Name selection
 // ═══════════════════════════════════════════
-function renderNamesPage() {
+async function renderNamesPage() {
+  if (!S) return;
   document.getElementById('names-ev-title').textContent = S.title;
   const grid = document.getElementById('name-grid');
+  grid.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:20px;color:var(--text-3)">불러오는 중...</div>`;
+
+  try {
+    const snap = await db.ref(`events/${currentEventId}/votes`).once('value');
+    S.votes = snap.val() || {};
+  } catch (e) { /* use cached */ }
+
   grid.innerHTML = S.participants.map(name => {
     const voted = !!S.votes[name];
-    return `
-      <button class="name-btn ${voted ? 'voted' : ''}" onclick="${voted ? '' : `selectName('${name}')`}">
-        ${name}
-        ${voted ? '<span class="voted-badge">✓ 완료</span>' : ''}
-      </button>
-    `;
+    return `<button class="name-btn ${voted ? 'voted' : ''}" onclick="${voted ? '' : `selectName('${name}')`}">
+      ${name}
+      ${voted ? '<span class="voted-badge">✓ 완료</span>' : ''}
+    </button>`;
   }).join('');
 }
 
 function selectName(name) {
   myName = name;
   myDates = [...(S.votes[name] || [])];
-  // init calendar to current month (or creation month if later)
   const [cy, cm] = S.created.split('-').map(Number);
   const now = TODAY;
   calY = now.getFullYear(); calM = now.getMonth();
-  // if created month is later, start there
   if (cy * 12 + cm > calY * 12 + calM) { calY = cy; calM = cm - 1; }
 
   document.getElementById('cal-topbar-title').textContent = name + '님의 가능한 날짜';
@@ -591,26 +640,54 @@ function toggleDate(d) {
   renderCalendarVote();
 }
 
-function submitVote() {
+async function submitVote() {
   if (myDates.length === 0) return showToast('가능한 날짜를 하나 이상 선택해주세요');
-  S.votes[myName] = [...myDates].sort();
-  location.hash = enc(S); // update URL with new state
-  myName = null; myDates = [];
-  renderResultsPage();
-  go('p-results');
-  showToast('제출 완료! 새 링크를 공유해보세요 ✅');
+  const sortedDates = [...myDates].sort();
+  const btn = document.querySelector('#p-cal .btn-success');
+  const origText = btn.textContent;
+  btn.textContent = '저장 중...';
+  btn.classList.add('btn-disabled');
+
+  try {
+    await db.ref(`events/${currentEventId}/votes/${myName}`).set(sortedDates);
+    S.votes[myName] = sortedDates;
+    const name = myName;
+    myName = null; myDates = [];
+    btn.textContent = origText;
+    btn.classList.remove('btn-disabled');
+    go('p-results');
+    showToast(`${name}님의 날짜가 저장됐어요 ✅`);
+  } catch (e) {
+    showToast('저장에 실패했어요. 다시 시도해주세요.');
+    btn.textContent = origText;
+    btn.classList.remove('btn-disabled');
+  }
 }
 
 // ═══════════════════════════════════════════
 //  PAGE 6: Results
 // ═══════════════════════════════════════════
 function renderResultsPage() {
+  if (!S) return;
   document.getElementById('results-ev-title').textContent = S.title;
+  if (!resY) { resY = TODAY.getFullYear(); resM = TODAY.getMonth(); }
+  updateResultsUI();
+
+  if (!resultsUnsubscribe) {
+    const votesRef = db.ref(`events/${currentEventId}/votes`);
+    const handler = snap => {
+      S.votes = snap.val() || {};
+      updateResultsUI();
+    };
+    votesRef.on('value', handler);
+    resultsUnsubscribe = () => votesRef.off('value', handler);
+  }
+}
+
+function updateResultsUI() {
   const voterCnt = Object.keys(S.votes).length;
   const total = S.participants.length;
   document.getElementById('results-meta').textContent = `${voterCnt}/${total}명 응답`;
-
-  if (!resY) { resY = TODAY.getFullYear(); resM = TODAY.getMonth(); }
   renderResCalendar();
   renderResultList();
 }
@@ -632,7 +709,10 @@ function resCalNav(dir) {
 function renderResultList() {
   const tally = {};
   Object.entries(S.votes).forEach(([name, dates]) => {
-    dates.forEach(d => { if (!tally[d]) tally[d] = []; tally[d].push(name); });
+    (Array.isArray(dates) ? dates : Object.values(dates)).forEach(d => {
+      if (!tally[d]) tally[d] = [];
+      tally[d].push(name);
+    });
   });
   const voterCnt = Object.keys(S.votes).length;
   const sorted = Object.entries(tally).sort((a, b) => b[1].length - a[1].length || a[0].localeCompare(b[0]));
@@ -662,7 +742,6 @@ function renderResultList() {
 }
 
 function shareResultUrl() {
-  location.hash = enc(S);
   const url = eventUrl();
   if (navigator.share) {
     navigator.share({ title: S.title + ' 결과', url }).catch(() => {});
@@ -679,7 +758,9 @@ function buildCal(year, month, mode) {
   const voterCnt = Object.keys(S.votes).length;
   if (mode === 'heat') {
     Object.values(S.votes).forEach(dates => {
-      dates.forEach(d => { heatmap[d] = (heatmap[d] || 0) + 1; });
+      (Array.isArray(dates) ? dates : Object.values(dates)).forEach(d => {
+        heatmap[d] = (heatmap[d] || 0) + 1;
+      });
     });
   }
 
@@ -739,20 +820,45 @@ function showToast(msg) {
 }
 
 // ═══════════════════════════════════════════
-//  URL hash routing
+//  Init: load event from URL ?id=KEY
 // ═══════════════════════════════════════════
-function handleHash() {
-  const hash = location.hash.slice(1);
-  if (!hash) return;
-  const data = dec(hash);
-  if (data && data.title && data.participants) {
-    S = data;
-    resY = TODAY.getFullYear(); resM = TODAY.getMonth();
-    go('p-names');
+async function handleInit() {
+  const params = new URLSearchParams(location.search);
+  const id = params.get('id');
+  if (!id) return;
+
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById('p-loading').classList.add('active');
+
+  try {
+    const snap = await db.ref('events/' + id).once('value');
+    const data = snap.val();
+    if (data && data.title && data.participants) {
+      currentEventId = id;
+      const participants = Array.isArray(data.participants)
+        ? data.participants
+        : Object.values(data.participants);
+      S = {
+        title: data.title,
+        participants,
+        votes: data.votes || {},
+        created: data.created
+      };
+      resY = TODAY.getFullYear(); resM = TODAY.getMonth();
+      go('p-names');
+    } else {
+      document.getElementById('p-loading').classList.remove('active');
+      document.getElementById('p-main').classList.add('active');
+      showToast('약속을 찾을 수 없어요');
+    }
+  } catch (e) {
+    document.getElementById('p-loading').classList.remove('active');
+    document.getElementById('p-main').classList.add('active');
+    showToast('불러오기에 실패했어요');
   }
 }
-window.addEventListener('hashchange', () => {});
-handleHash();
+
+handleInit();
 </script>
 </body>
 </html>
